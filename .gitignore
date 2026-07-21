@@ -1,0 +1,7 @@
+node_modules/
+# Synced build artifacts (copied from the backend/frontend repos by `npm run sync`)
+backend/
+frontend/
+# electron-builder output
+release/
+.DS_Store

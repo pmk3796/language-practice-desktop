@@ -1,0 +1,158 @@
+import { app, BrowserWindow, dialog, ipcMain, session } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Fixed local port the embedded backend listens on. The frontend is built with
+// VITE_API_BASE pointing here (see the sync:frontend script).
+const PORT = 47821
+
+// Smoke mode (LP_SMOKE=1): boot everything headless, print a marker, quit.
+const SMOKE = !!process.env.LP_SMOKE
+
+let mainWindow = null
+let setupWindow = null
+
+// --- Config (API key) -------------------------------------------------------
+// The key lives in ~/Library/Application Support/Language Practice/config.json.
+// It is never bundled into the app.
+const configPath = () => path.join(app.getPath('userData'), 'config.json')
+
+function readConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(configPath(), 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+function writeConfig(patch) {
+  const next = { ...readConfig(), ...patch }
+  fs.mkdirSync(app.getPath('userData'), { recursive: true })
+  fs.writeFileSync(configPath(), JSON.stringify(next, null, 2))
+  return next
+}
+
+// --- Embedded backend -------------------------------------------------------
+async function startBackend(apiKey) {
+  process.env.OPENAI_API_KEY = apiKey
+  process.env.FRONTEND_ORIGIN = '*'
+  // Optional model overrides saved in config.json pass straight through.
+  const cfg = readConfig()
+  if (cfg.chatModel) process.env.CHAT_MODEL = cfg.chatModel
+  if (cfg.transcribeModel) process.env.TRANSCRIBE_MODEL = cfg.transcribeModel
+  if (cfg.ttsModel) process.env.TTS_MODEL = cfg.ttsModel
+
+  // The backend writes uploaded audio to a relative uploads/ dir — point the
+  // working directory at userData so everything it writes lands somewhere
+  // writable (a packaged app's own directory is read-only).
+  const dataDir = app.getPath('userData')
+  fs.mkdirSync(path.join(dataDir, 'uploads'), { recursive: true })
+  process.chdir(dataDir)
+
+  const { createApp } = await import(pathToFileURL(path.join(__dirname, 'backend', 'app.js')).href)
+  const server = createApp().listen(PORT, '127.0.0.1')
+
+  await new Promise((resolve, reject) => {
+    server.once('listening', resolve)
+    server.once('error', reject)
+  })
+}
+
+// --- Windows ----------------------------------------------------------------
+function createMainWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1360,
+    height: 900,
+    minWidth: 900,
+    minHeight: 640,
+    show: false,
+    backgroundColor: '#0f1220',
+    title: 'Language Practice',
+  })
+  mainWindow.loadFile(path.join(__dirname, 'frontend', 'index.html'))
+  mainWindow.once('ready-to-show', () => {
+    if (!SMOKE) mainWindow.show()
+  })
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+}
+
+function createSetupWindow() {
+  setupWindow = new BrowserWindow({
+    width: 460,
+    height: 320,
+    resizable: false,
+    show: true,
+    backgroundColor: '#0f1220',
+    title: 'Language Practice — Setup',
+    webPreferences: {
+      preload: path.join(__dirname, 'setup-preload.cjs'),
+    },
+  })
+  setupWindow.loadFile(path.join(__dirname, 'setup.html'))
+  setupWindow.on('closed', () => {
+    setupWindow = null
+  })
+}
+
+async function boot(apiKey) {
+  try {
+    await startBackend(apiKey)
+  } catch (err) {
+    dialog.showErrorBox(
+      'Language Practice could not start',
+      `The local server failed to start (port ${PORT}).\n\n${err?.message || err}`,
+    )
+    app.exit(1)
+    return
+  }
+  createMainWindow()
+  if (SMOKE) {
+    const holdMs = Number(process.env.LP_SMOKE_MS) || 2500
+    setTimeout(() => {
+      console.log('SMOKE_OK: backend listening and window created')
+      app.exit(0)
+    }, holdMs)
+  }
+}
+
+// First-run setup: the renderer posts the pasted key here.
+ipcMain.handle('save-key', async (_event, key) => {
+  const trimmed = String(key || '').trim()
+  if (!trimmed) return { ok: false, message: 'Please paste your API key.' }
+  writeConfig({ apiKey: trimmed })
+  setupWindow?.close()
+  await boot(trimmed)
+  return { ok: true }
+})
+
+// --- App lifecycle ----------------------------------------------------------
+// Let the practice audio play without a prior user gesture (replays etc).
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
+app.whenReady().then(async () => {
+  // Allow the mic (getUserMedia) inside the app; macOS still shows its own
+  // system microphone prompt the first time.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+
+  const apiKey = process.env.OPENAI_API_KEY || readConfig().apiKey
+  if (!apiKey && !SMOKE) {
+    createSetupWindow()
+  } else {
+    await boot(apiKey || 'smoke-test-key')
+  }
+
+  app.on('activate', () => {
+    if (mainWindow === null && setupWindow === null) createMainWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})

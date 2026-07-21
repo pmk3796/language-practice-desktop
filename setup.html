@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Language Practice — Setup</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0f1220;
+      color: #e7e9f3;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .card { width: 100%; padding: 28px; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    p { color: #9aa0bd; font-size: 13px; margin: 0 0 16px; line-height: 1.5; }
+    input {
+      width: 100%;
+      background: #232840;
+      border: 1px solid #2e3450;
+      border-radius: 10px;
+      color: #e7e9f3;
+      padding: 11px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus { border-color: #6c8cff; }
+    button {
+      margin-top: 12px;
+      width: 100%;
+      background: linear-gradient(145deg, #6c8cff, #4a6bff);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .error { color: #ff5d6c; font-size: 12px; margin-top: 10px; min-height: 15px; }
+    .note { color: #9aa0bd; font-size: 11px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🗣️ Welcome to Language Practice</h1>
+    <p>Paste your OpenAI API key to get started. It's stored only on this Mac, in the app's local settings.</p>
+    <input id="key" type="password" placeholder="sk-..." autofocus />
+    <button id="save">Save &amp; launch →</button>
+    <div id="error" class="error"></div>
+    <div class="note">Get a key at platform.openai.com/api-keys</div>
+  </div>
+  <script>
+    const input = document.getElementById('key')
+    const errEl = document.getElementById('error')
+    async function submit() {
+      errEl.textContent = ''
+      const res = await window.setupAPI.saveKey(input.value)
+      if (res && !res.ok) errEl.textContent = res.message
+    }
+    document.getElementById('save').addEventListener('click', submit)
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit() })
+  </script>
+</body>
+</html>

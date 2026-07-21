@@ -1,0 +1,54 @@
+{
+  "name": "language-practice-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Language Practice as a macOS desktop app (Electron shell around the existing backend + frontend).",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "sync": "npm run sync:backend && npm run sync:frontend",
+    "sync:backend": "npm --prefix ../language-practice-backend run build && rm -rf backend && cp -R ../language-practice-backend/dist backend",
+    "sync:frontend": "cd ../language-practice-frontend && VITE_API_BASE=http://127.0.0.1:47821 npx vite build --base ./ --outDir dist-desktop --emptyOutDir && cd ../language-practice-desktop && rm -rf frontend && cp -R ../language-practice-frontend/dist-desktop frontend",
+    "start": "electron .",
+    "dev": "npm run sync && electron .",
+    "smoke": "LP_SMOKE=1 electron .",
+    "dist": "npm run sync && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.pranav.languagepractice",
+    "productName": "Language Practice",
+    "asar": false,
+    "files": [
+      "main.js",
+      "setup.html",
+      "setup-preload.cjs",
+      "backend/**",
+      "frontend/**"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "identity": null,
+      "hardenedRuntime": false,
+      "target": [
+        "dmg",
+        "dir"
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Language Practice uses the microphone so you can speak during practice conversations."
+      }
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}
