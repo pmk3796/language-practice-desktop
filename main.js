@@ -145,11 +145,73 @@ ipcMain.handle('open-external', async (_event, url) => {
   if (/^https:\/\//i.test(u)) await shell.openExternal(u)
 })
 
+/** Cheapest-first preference for the tiny "is this account funded?" probe. */
+const PROBE_PREFERENCE = [
+  'gpt-4o-mini',
+  'gpt-5-nano',
+  'gpt-5.4-nano',
+  'gpt-4.1-nano',
+  'gpt-5-mini',
+  'gpt-5.4-mini',
+  'gpt-4o',
+]
+
+/** Pick a cheap chat model the account demonstrably has access to. */
+function pickProbeModel(ids) {
+  const have = new Set(ids)
+  const preferred = PROBE_PREFERENCE.find((m) => have.has(m))
+  if (preferred) return preferred
+  // Fall back to any plain chat model, skipping specialised variants.
+  return ids.find(
+    (id) =>
+      /^gpt-[45]/.test(id) &&
+      !/(audio|realtime|tts|transcribe|search|codex|pro|image|embedding)/.test(id),
+  )
+}
+
 /**
- * Check a key before we commit to it, using the free models endpoint (listing
- * models costs nothing, so setup never spends the user's credit). This catches
- * typos and revoked keys; it can't detect an unfunded account, which is why the
- * "add credits" step is marked required in the UI.
+ * Confirm the account actually has credit by asking for a single token. Costs a
+ * few thousandths of a cent, and it's the only way to detect an unfunded
+ * account — listing models succeeds even at a $0 balance.
+ *
+ * Anything other than a definitive `insufficient_quota` is treated as funded:
+ * rate limits and model quirks shouldn't lock someone out of their own app.
+ */
+async function checkFunded(key, modelIds) {
+  const model = pickProbeModel(modelIds)
+  if (!model) return { funded: true } // nothing safe to probe with
+
+  // The GPT-5 family renamed the token cap; fall back if the param is rejected.
+  const capParam = /^(gpt-5|o[1-9])/.test(model) ? 'max_completion_tokens' : 'max_tokens'
+
+  const attempt = (body) =>
+    fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    })
+
+  const base = { model, messages: [{ role: 'user', content: 'hi' }] }
+  let res = await attempt({ ...base, [capParam]: 1 })
+  if (res.status === 400) res = await attempt(base) // param mismatch — retry plain
+
+  if (res.ok) return { funded: true }
+
+  let code = ''
+  try {
+    code = (await res.json())?.error?.code || ''
+  } catch {
+    /* body wasn't JSON */
+  }
+  return { funded: !(res.status === 429 && code === 'insufficient_quota') }
+}
+
+/**
+ * Check a key before we commit to it:
+ *   1. GET /v1/models   — free; catches typos and revoked keys.
+ *   2. one-token chat   — costs a fraction of a cent, but is the only way to
+ *      tell whether the account has credit (step 1 passes at a $0 balance).
  */
 ipcMain.handle('validate-key', async (_event, key) => {
   const trimmed = String(key || '').trim()
@@ -163,17 +225,25 @@ ipcMain.handle('validate-key', async (_event, key) => {
       headers: { Authorization: `Bearer ${trimmed}` },
       signal: AbortSignal.timeout(15000),
     })
-    if (res.ok) return { ok: true }
+
     if (res.status === 401) {
       return { ok: false, message: 'OpenAI rejected this key. Copy it again from the API keys page.' }
     }
-    if (res.status === 429) {
+    if (!res.ok && res.status !== 429) {
+      return { ok: false, message: `OpenAI returned an error (${res.status}). Please try again.` }
+    }
+
+    const ids = res.ok ? ((await res.json())?.data || []).map((m) => m.id) : []
+    const { funded } = await checkFunded(trimmed, ids)
+    if (!funded) {
       return {
         ok: false,
-        message: 'This key has no credit yet. Add funds in Billing (step 2), then try again.',
+        code: 'no_funds',
+        message:
+          'This key works, but the account has no credit yet — add funds in Billing (step 2), then try again.',
       }
     }
-    return { ok: false, message: `OpenAI returned an error (${res.status}). Please try again.` }
+    return { ok: true }
   } catch {
     return {
       ok: false,

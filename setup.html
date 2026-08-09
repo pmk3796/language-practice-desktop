@@ -39,6 +39,9 @@
     animation: rise 0.32s ease both;
   }
   .screen.on { display: flex; }
+  /* Keep natural heights — without this, a wrapped error message squashes the
+     items below it and the text visually overlaps. */
+  .screen > * { flex-shrink: 0; }
   @keyframes rise {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: none; }
@@ -323,6 +326,7 @@
   function setStatus(text, kind) {
     status.className = 'status' + (kind ? ' ' + kind : '')
     status.innerHTML = text
+    requestAnimationFrame(fit) // a wrapped message can change the page height
   }
 
   async function submitKey() {
@@ -336,13 +340,26 @@
     }
 
     cta.disabled = true
-    setStatus('<span class="spinner"></span>Checking your key…', 'busy')
+    setStatus('<span class="spinner"></span>Checking your key and credit…', 'busy')
 
     const check = await window.setupAPI.validateKey(key)
     if (!check.ok) {
       cta.disabled = false
       keyInput.classList.add('bad')
-      setStatus(check.message, 'err')
+      if (check.code === 'no_funds') {
+        // Never hard-lock someone out over a billing check we might read wrong.
+        setStatus(
+          check.message + ' <a href="#" id="anyway" class="link">Use it anyway</a>',
+          'err',
+        )
+        document.getElementById('anyway').addEventListener('click', async (e) => {
+          e.preventDefault()
+          setStatus('Launching…', 'ok')
+          await window.setupAPI.saveKey(key)
+        })
+      } else {
+        setStatus(check.message, 'err')
+      }
       return
     }
 
