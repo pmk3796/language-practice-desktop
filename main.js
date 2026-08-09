@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -69,7 +69,8 @@ function createMainWindow() {
     minWidth: 900,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0f1220',
+    // Match the OS so the pre-paint frame doesn't flash dark on a light theme.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1220' : '#eef1f8',
     title: 'Language Practice',
   })
   mainWindow.loadFile(path.join(__dirname, 'frontend', 'index.html'))
