@@ -14,6 +14,7 @@ const SMOKE = !!process.env.LP_SMOKE
 
 let mainWindow = null
 let setupWindow = null
+let openaiService = null
 
 // --- Config (API key) -------------------------------------------------------
 // The key lives in ~/Library/Application Support/Language Practice/config.json.
@@ -53,6 +54,8 @@ async function startBackend(apiKey) {
   process.chdir(dataDir)
 
   const { createApp } = await import(pathToFileURL(path.join(__dirname, 'backend', 'app.js')).href)
+  // Held so Settings can change the key on the running server without a restart.
+  openaiService = await import(pathToFileURL(path.join(__dirname, 'backend', 'services', 'openai.js')).href)
   const server = createApp().listen(PORT, '127.0.0.1')
 
   await new Promise((resolve, reject) => {
@@ -72,6 +75,9 @@ function createMainWindow() {
     // Match the OS so the pre-paint frame doesn't flash dark on a light theme.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1220' : '#eef1f8',
     title: 'Language Practice',
+    webPreferences: {
+      preload: path.join(__dirname, 'main-preload.cjs'),
+    },
   })
   mainWindow.loadFile(path.join(__dirname, 'frontend', 'index.html'))
   mainWindow.once('ready-to-show', () => {
@@ -251,6 +257,26 @@ ipcMain.handle('validate-key', async (_event, key) => {
       message: "Couldn't reach OpenAI. Check your internet connection and try again.",
     }
   }
+})
+
+/** Show enough of the key to recognise it, never the whole thing. */
+function maskKey(key) {
+  if (!key) return ''
+  return key.length <= 14 ? '••••' : `${key.slice(0, 10)}…${key.slice(-4)}`
+}
+
+ipcMain.handle('get-key-info', async () => ({ masked: maskKey(readConfig().apiKey) }))
+
+/**
+ * Replace the stored key and apply it to the running backend immediately (the
+ * SDK reads its key per request), so a change takes effect without a restart.
+ */
+ipcMain.handle('update-key', async (_event, key) => {
+  const trimmed = String(key || '').trim()
+  if (!trimmed) return { ok: false, message: 'Please paste your API key.' }
+  writeConfig({ apiKey: trimmed })
+  openaiService?.setApiKey?.(trimmed)
+  return { ok: true, masked: maskKey(trimmed) }
 })
 
 // First-run setup: the renderer posts the pasted key here.

@@ -32,6 +32,7 @@
       "main.js",
       "setup.html",
       "setup-preload.cjs",
+      "main-preload.cjs",
       "backend/**",
       "frontend/**"
     ],
