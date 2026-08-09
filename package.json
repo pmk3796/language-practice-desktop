@@ -12,7 +12,7 @@
     "start": "electron .",
     "dev": "npm run sync && electron .",
     "smoke": "LP_SMOKE=1 electron .",
-    "dist": "npm run sync && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac"
+    "dist": "npm run sync && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac && touch release/.metadata_never_index"
   },
   "dependencies": {
     "cors": "^2.8.5",
