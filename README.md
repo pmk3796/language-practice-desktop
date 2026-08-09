@@ -10,11 +10,27 @@ app. It reuses the other two repos **unchanged**:
 
 ## First run
 
-The app asks for your OpenAI API key once and stores it in
-`~/Library/Application Support/Language Practice/config.json` (never inside the
-app bundle). macOS will also ask for microphone access the first time you tap
-Speak. Optional model overrides (`chatModel`, `transcribeModel`, `ttsModel`) can
-be added to the same config.json.
+New users must complete a two-screen setup before the app will start — the
+backend doesn't boot until a key is saved:
+
+1. **Welcome** — what the app is, and its three promises: free (you pay OpenAI
+   directly for usage), no ads, and no data collection.
+2. **Connect your OpenAI key** — four short steps (sign in → *add credits* →
+   create a secret key → paste). Links open in the real browser.
+
+The key is checked against OpenAI's free `/v1/models` endpoint before it's
+accepted, so typos and revoked keys are caught immediately instead of failing
+mid-conversation. Note that listing models doesn't prove the account is funded —
+which is why "add credits" is flagged **required** in the UI; an unfunded key
+fails later with a clear billing message.
+
+The key is stored in
+`~/Library/Application Support/language-practice-desktop/config.json` (never
+inside the app bundle). macOS will also ask for microphone access the first time
+you tap Speak. Optional model overrides (`chatModel`, `transcribeModel`,
+`ttsModel`) can be added to the same config.json.
+
+To see the setup flow again, quit the app and delete that config.json.
 
 ## Develop
 

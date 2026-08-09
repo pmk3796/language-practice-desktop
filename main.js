@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -83,8 +83,8 @@ function createMainWindow() {
 
 function createSetupWindow() {
   setupWindow = new BrowserWindow({
-    width: 460,
-    height: 320,
+    width: 560,
+    height: 700,
     resizable: false,
     show: true,
     backgroundColor: '#0f1220',
@@ -125,6 +125,62 @@ async function boot(apiKey) {
     }, holdMs)
   }
 }
+
+// Each setup screen sizes the window to its own content, so neither screen
+// scrolls and neither is left with a pool of empty space.
+ipcMain.handle('resize-setup', async (_event, height) => {
+  if (!setupWindow) return
+  const h = Math.max(360, Math.min(900, Math.round(Number(height) || 700)))
+  // setContentSize, not setSize — the latter counts the title bar and would
+  // clip the last line of the page.
+  const [w] = setupWindow.getContentSize()
+  setupWindow.setContentSize(w, h, true)
+  setupWindow.center()
+})
+
+// Open setup links in the user's real browser, never inside the app.
+ipcMain.handle('open-external', async (_event, url) => {
+  const u = String(url || '')
+  // Only ever hand https: URLs to the OS.
+  if (/^https:\/\//i.test(u)) await shell.openExternal(u)
+})
+
+/**
+ * Check a key before we commit to it, using the free models endpoint (listing
+ * models costs nothing, so setup never spends the user's credit). This catches
+ * typos and revoked keys; it can't detect an unfunded account, which is why the
+ * "add credits" step is marked required in the UI.
+ */
+ipcMain.handle('validate-key', async (_event, key) => {
+  const trimmed = String(key || '').trim()
+  if (!trimmed) return { ok: false, message: 'Please paste your API key.' }
+  if (!trimmed.startsWith('sk-')) {
+    return { ok: false, message: "That doesn't look like an OpenAI key — they start with “sk-”." }
+  }
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/models', {
+      headers: { Authorization: `Bearer ${trimmed}` },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (res.ok) return { ok: true }
+    if (res.status === 401) {
+      return { ok: false, message: 'OpenAI rejected this key. Copy it again from the API keys page.' }
+    }
+    if (res.status === 429) {
+      return {
+        ok: false,
+        message: 'This key has no credit yet. Add funds in Billing (step 2), then try again.',
+      }
+    }
+    return { ok: false, message: `OpenAI returned an error (${res.status}). Please try again.` }
+  } catch {
+    return {
+      ok: false,
+      message: "Couldn't reach OpenAI. Check your internet connection and try again.",
+    }
+  }
+})
 
 // First-run setup: the renderer posts the pasted key here.
 ipcMain.handle('save-key', async (_event, key) => {

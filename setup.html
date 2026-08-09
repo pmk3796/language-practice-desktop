@@ -1,69 +1,369 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Language Practice — Setup</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #0f1220;
-      color: #e7e9f3;
-      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-    .card { width: 100%; padding: 28px; }
-    h1 { font-size: 18px; margin: 0 0 6px; }
-    p { color: #9aa0bd; font-size: 13px; margin: 0 0 16px; line-height: 1.5; }
-    input {
-      width: 100%;
-      background: #232840;
-      border: 1px solid #2e3450;
-      border-radius: 10px;
-      color: #e7e9f3;
-      padding: 11px 12px;
-      font-size: 14px;
-      outline: none;
-    }
-    input:focus { border-color: #6c8cff; }
-    button {
-      margin-top: 12px;
-      width: 100%;
-      background: linear-gradient(145deg, #6c8cff, #4a6bff);
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      padding: 12px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .error { color: #ff5d6c; font-size: 12px; margin-top: 10px; min-height: 15px; }
-    .note { color: #9aa0bd; font-size: 11px; margin-top: 10px; }
-  </style>
+<meta charset="UTF-8" />
+<title>Language Practice — Setup</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --panel: #1a1e30;
+    --panel-2: #232840;
+    --border: #2e3450;
+    --text: #e7e9f3;
+    --muted: #9aa0bd;
+    --accent: #6c8cff;
+    --accent-2: #4ad6a0;
+    --danger: #ff5d6c;
+    --warn: #ffcf5c;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: radial-gradient(900px 500px at 50% -15%, #1c2140 0%, var(--bg) 62%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  .screen {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 34px 38px 26px;
+    display: none;
+    flex-direction: column;
+    animation: rise 0.32s ease both;
+  }
+  .screen.on { display: flex; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ---------- Welcome ---------- */
+  .hero { text-align: center; margin-bottom: 26px; }
+  .logo { font-size: 46px; line-height: 1; }
+  h1 { font-size: 25px; margin: 12px 0 8px; letter-spacing: -0.02em; }
+  .tagline {
+    color: var(--muted); font-size: 15px; line-height: 1.55;
+    max-width: 400px; margin: 0 auto;
+  }
+  .tagline strong { color: var(--text); font-weight: 600; }
+
+  .principles { display: flex; flex-direction: column; gap: 11px; }
+  .principle {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 15px 17px;
+  }
+  .p-icon {
+    font-size: 21px; line-height: 1.25; flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: var(--panel-2);
+  }
+  .p-title { font-weight: 650; font-size: 15px; margin-bottom: 3px; }
+  .p-body { color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .p-body em { color: var(--text); font-style: normal; }
+
+  /* ---------- Steps ---------- */
+  .head { margin-bottom: 20px; }
+  .head h2 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .head p { color: var(--muted); font-size: 13.5px; margin: 0; line-height: 1.5; }
+
+  ol.steps { list-style: none; margin: 0 0 20px; padding: 0; }
+  ol.steps li {
+    display: flex; gap: 13px; align-items: baseline;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  ol.steps li:last-child { border-bottom: none; }
+  .num {
+    flex-shrink: 0;
+    width: 21px; height: 21px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    transform: translateY(3px);
+  }
+  .step-text { font-size: 14px; line-height: 1.6; }
+  .step-text .sub { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  a.link {
+    color: var(--accent); text-decoration: none; font-weight: 600;
+    border-bottom: 1px solid rgba(108,140,255,0.45);
+  }
+  a.link:hover { border-bottom-color: var(--accent); }
+
+  .req {
+    display: inline-block; vertical-align: middle;
+    background: rgba(255,207,92,0.14); color: var(--warn);
+    border-radius: 999px; padding: 1px 8px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; margin-left: 6px;
+  }
+
+  /* ---------- Key field ---------- */
+  .field-label {
+    color: var(--muted); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 7px;
+  }
+  input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    color: var(--text);
+    padding: 12px 13px;
+    font-size: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input::placeholder { font-family: system-ui, sans-serif; color: #6b7192; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,140,255,0.22); }
+  input.bad { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,93,108,0.18); }
+
+  .status { font-size: 12.5px; margin-top: 9px; min-height: 17px; line-height: 1.45; }
+  .status.err { color: var(--danger); }
+  .status.ok { color: var(--accent-2); }
+  .status.busy { color: var(--muted); }
+
+  /* ---------- Footer / buttons ---------- */
+  .footer {
+    padding: 16px 38px 22px;
+    border-top: 1px solid var(--border);
+    background: rgba(15,18,32,0.72);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .cta {
+    flex: 1;
+    background: linear-gradient(145deg, var(--accent), #4a6bff);
+    color: #fff; border: none; border-radius: 12px;
+    padding: 13px 20px; font-size: 15.5px; font-weight: 700;
+    box-shadow: 0 8px 22px rgba(76,108,255,0.32);
+    transition: filter 0.15s ease;
+  }
+  .cta:hover:not(:disabled) { filter: brightness(1.08); }
+  .cta:disabled { opacity: 0.55; box-shadow: none; cursor: default; }
+  .ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 12px;
+    padding: 13px 16px; font-size: 14px;
+  }
+  .ghost:hover { color: var(--text); border-color: var(--accent); }
+  .note { color: var(--muted); font-size: 11.5px; text-align: center; margin: 10px 0 0; }
+
+  .spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
 <body>
-  <div class="card">
-    <h1>🗣️ Welcome to Language Practice</h1>
-    <p>Paste your OpenAI API key to get started. It's stored only on this Mac, in the app's local settings.</p>
-    <input id="key" type="password" placeholder="sk-..." autofocus />
-    <button id="save">Save &amp; launch →</button>
-    <div id="error" class="error"></div>
-    <div class="note">Get a key at platform.openai.com/api-keys</div>
+
+<!-- ============ 1. Welcome ============ -->
+<section id="s-welcome" class="screen on">
+  <div class="hero">
+    <div class="logo">🗣️</div>
+    <h1>Practice out loud. No audience.</h1>
+    <p class="tagline">
+      Real conversations in the language you're learning — with
+      <strong>zero embarrassment</strong>, on your own schedule.
+    </p>
   </div>
-  <script>
-    const input = document.getElementById('key')
-    const errEl = document.getElementById('error')
-    async function submit() {
-      errEl.textContent = ''
-      const res = await window.setupAPI.saveKey(input.value)
-      if (res && !res.ok) errEl.textContent = res.message
+
+  <div class="principles">
+    <div class="principle">
+      <div class="p-icon">🎈</div>
+      <div>
+        <div class="p-title">Free app, honest pricing</div>
+        <div class="p-body">
+          No subscription, no markup, no upsell. You pay OpenAI directly for what you
+          actually use — <em>usually pennies per conversation</em>.
+        </div>
+      </div>
+    </div>
+
+    <div class="principle">
+      <div class="p-icon">🚫</div>
+      <div>
+        <div class="p-title">Not a single ad</div>
+        <div class="p-body">
+          No banners, no popups, no "upgrade to Pro" nags. Just you and the conversation.
+        </div>
+      </div>
+    </div>
+
+    <div class="principle">
+      <div class="p-icon">🔒</div>
+      <div>
+        <div class="p-title">Your data never leaves your Mac</div>
+        <div class="p-body">
+          No account, no tracking, no analytics — we collect <em>nothing</em>. Conversations
+          and flashcards are stored right here on your computer. What you say is sent to
+          OpenAI to power the reply, and nowhere else.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. Connect key ============ -->
+<section id="s-connect" class="screen">
+  <div class="head">
+    <h2>Connect your OpenAI key</h2>
+    <p>A one-time setup, about two minutes. This is what powers the conversations.</p>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <span class="num">1</span>
+      <span class="step-text">
+        Open
+        <a class="link" href="#" data-url="https://platform.openai.com/signup">platform.openai.com</a>
+        and sign in (or create an account).
+      </span>
+    </li>
+    <li>
+      <span class="num">2</span>
+      <span class="step-text">
+        Add credits in
+        <a class="link" href="#" data-url="https://platform.openai.com/settings/organization/billing/overview">Billing</a>
+        <span class="req">required</span>
+        <span class="sub">$5 goes a long way — this is prepaid, so keys don't work without it.</span>
+      </span>
+    </li>
+    <li>
+      <span class="num">3</span>
+      <span class="step-text">
+        Create a secret key on the
+        <a class="link" href="#" data-url="https://platform.openai.com/api-keys">API keys</a> page.
+        <span class="sub">Copy it right away — OpenAI shows it only once.</span>
+      </span>
+    </li>
+    <li>
+      <span class="num">4</span>
+      <span class="step-text">Paste it below and you're in. 🎉</span>
+    </li>
+  </ol>
+
+  <div class="field-label">Your API key</div>
+  <input id="key" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off" />
+  <div id="status" class="status"></div>
+
+  <p class="note">
+    Stored only on this Mac, in this app's local settings — never sent anywhere but OpenAI.
+  </p>
+</section>
+
+<!-- ============ Footer ============ -->
+<div class="footer">
+  <button id="back" class="ghost" style="display:none">Back</button>
+  <button id="cta" class="cta">Get started →</button>
+</div>
+
+<script>
+  const el = (id) => document.getElementById(id)
+  const welcome = el('s-welcome')
+  const connect = el('s-connect')
+  const cta = el('cta')
+  const back = el('back')
+  const keyInput = el('key')
+  const status = el('status')
+
+  let step = 'welcome'
+
+  // Open links in the real browser, not inside the app window.
+  document.querySelectorAll('a.link').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault()
+      window.setupAPI.openExternal(a.dataset.url)
+    })
+  })
+
+  // Size the window to whichever screen is showing, so nothing scrolls and no
+  // screen is left with a pool of empty space beneath it.
+  function fit() {
+    const active = step === 'welcome' ? welcome : connect
+    // The screen is a stretched flex child, so scrollHeight reports the
+    // stretched box — measure to the bottom of its last child instead.
+    const last = active.children[active.children.length - 1]
+    if (!last) return
+    const contentBottom = last.getBoundingClientRect().bottom - active.getBoundingClientRect().top
+    const padBottom = parseFloat(getComputedStyle(active).paddingBottom) || 0
+    const footer = document.querySelector('.footer').offsetHeight
+    window.setupAPI?.resize?.(Math.ceil(contentBottom + padBottom + footer))
+  }
+
+  function show(which) {
+    step = which
+    const isWelcome = which === 'welcome'
+    welcome.classList.toggle('on', isWelcome)
+    connect.classList.toggle('on', !isWelcome)
+    back.style.display = isWelcome ? 'none' : 'block'
+    cta.textContent = isWelcome ? 'Get started →' : 'Start practising →'
+    requestAnimationFrame(fit)
+    if (!isWelcome) setTimeout(() => keyInput.focus(), 60)
+  }
+
+  window.addEventListener('DOMContentLoaded', () => requestAnimationFrame(fit))
+
+  function setStatus(text, kind) {
+    status.className = 'status' + (kind ? ' ' + kind : '')
+    status.innerHTML = text
+  }
+
+  async function submitKey() {
+    const key = keyInput.value.trim()
+    keyInput.classList.remove('bad')
+    if (!key) {
+      keyInput.classList.add('bad')
+      setStatus('Paste your API key above to continue.', 'err')
+      keyInput.focus()
+      return
     }
-    document.getElementById('save').addEventListener('click', submit)
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit() })
-  </script>
+
+    cta.disabled = true
+    setStatus('<span class="spinner"></span>Checking your key…', 'busy')
+
+    const check = await window.setupAPI.validateKey(key)
+    if (!check.ok) {
+      cta.disabled = false
+      keyInput.classList.add('bad')
+      setStatus(check.message, 'err')
+      return
+    }
+
+    setStatus('Key looks good — launching…', 'ok')
+    const saved = await window.setupAPI.saveKey(key)
+    if (saved && !saved.ok) {
+      cta.disabled = false
+      setStatus(saved.message, 'err')
+    }
+  }
+
+  cta.addEventListener('click', () => {
+    if (step === 'welcome') show('connect')
+    else submitKey()
+  })
+  back.addEventListener('click', () => show('welcome'))
+  keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitKey() })
+  keyInput.addEventListener('input', () => {
+    keyInput.classList.remove('bad')
+    if (status.classList.contains('err')) setStatus('')
+  })
+</script>
 </body>
 </html>
