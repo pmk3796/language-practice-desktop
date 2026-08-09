@@ -103,9 +103,15 @@ async function boot(apiKey) {
   try {
     await startBackend(apiKey)
   } catch (err) {
+    if (SMOKE) {
+      // No blocking dialogs in smoke mode — report and bail.
+      console.error(`SMOKE_FAIL: backend did not start (port ${PORT}): ${err?.message || err}`)
+      app.exit(1)
+      return
+    }
     dialog.showErrorBox(
       'Language Practice could not start',
-      `The local server failed to start (port ${PORT}).\n\n${err?.message || err}`,
+      `The local server failed to start (port ${PORT}).\n\nIs another copy of Language Practice already running?\n\n${err?.message || err}`,
     )
     app.exit(1)
     return
