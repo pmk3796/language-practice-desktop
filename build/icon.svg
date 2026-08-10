@@ -1,16 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
+    <!-- Calm palette: teal brand ground, forest green for the partner bubble. -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="#7B86FF"/>
-      <stop offset="55%" stop-color="#5A5BE0"/>
-      <stop offset="100%" stop-color="#3A32A8"/>
+      <stop offset="0%"  stop-color="#35BFA8"/>
+      <stop offset="52%" stop-color="#15836F"/>
+      <stop offset="100%" stop-color="#0A544A"/>
     </linearGradient>
-    <linearGradient id="mint" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"  stop-color="#5FE8B4"/>
-      <stop offset="100%" stop-color="#3FC894"/>
+    <linearGradient id="leaf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#86D19B"/>
+      <stop offset="100%" stop-color="#5EAE76"/>
     </linearGradient>
     <filter id="soft" x="-25%" y="-25%" width="150%" height="150%">
-      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#160F52" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#06342D" flood-opacity="0.30"/>
     </filter>
   </defs>
 
@@ -19,10 +20,10 @@
 
   <!-- back bubble: your conversation partner -->
   <g filter="url(#soft)">
-    <path fill="url(#mint)" d="
+    <path fill="url(#leaf)" d="
       M 540 252 H 724 A 66 66 0 0 1 790 318 V 414 A 66 66 0 0 1 724 480 H 540
       A 66 66 0 0 1 474 414 V 318 A 66 66 0 0 1 540 252 Z"/>
-    <path fill="#43CE99" d="
+    <path fill="#5EAE76" d="
       M 706 446 C 726 478 756 502 794 520 C 744 520 694 500 658 476 Z"/>
   </g>
 
@@ -34,7 +35,7 @@
   </g>
 
   <!-- voice waveform: speaking practice -->
-  <g fill="#4B45C9">
+  <g fill="#0F7A6E">
     <rect x="329" y="497" width="38" height="90"  rx="19"/>
     <rect x="393" y="462" width="38" height="160" rx="19"/>
     <rect x="457" y="477" width="38" height="130" rx="19"/>
