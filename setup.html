@@ -5,21 +5,28 @@
 <title>Language Practice — Setup</title>
 <style>
   :root {
-    --bg: #0f1220;
-    --panel: #1a1e30;
-    --panel-2: #232840;
-    --border: #2e3450;
-    --text: #e7e9f3;
-    --muted: #9aa0bd;
-    --accent: #6c8cff;
-    --accent-2: #4ad6a0;
-    --danger: #ff5d6c;
-    --warn: #ffcf5c;
+    --bg: #0c1310;
+    --panel: #121a17;
+    --panel-2: #1a231f;
+    --border: #27332d;
+    --text: #e6ede9;
+    --muted: #93a29b;
+    --accent: #35c48d;
+    --accent-2: #63cf85;
+    --danger: #ff6b6b;
+    --warn: #ffc663;
+    /*
+     * A bright accent on a dark ground cannot carry a white label — white on it
+     * measures 1.9:1 — so anything filled with the accent takes a dark one. Same
+     * rule the app itself follows.
+     */
+    --on-accent: #06231a;
+    --accent-grad-b: #30b07f;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: radial-gradient(900px 500px at 50% -15%, #1c2140 0%, var(--bg) 62%);
+    background: radial-gradient(900px 500px at 50% -15%, #12291f 0%, var(--bg) 62%);
     color: var(--text);
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -101,13 +108,13 @@
 
   a.link {
     color: var(--accent); text-decoration: none; font-weight: 600;
-    border-bottom: 1px solid rgba(108,140,255,0.45);
+    border-bottom: 1px solid rgba(53,196,141,0.45);
   }
   a.link:hover { border-bottom-color: var(--accent); }
 
   .req {
     display: inline-block; vertical-align: middle;
-    background: rgba(255,207,92,0.14); color: var(--warn);
+    background: rgba(255,198,99,0.14); color: var(--warn);
     border-radius: 999px; padding: 1px 8px;
     font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
     text-transform: uppercase; margin-left: 6px;
@@ -131,9 +138,9 @@
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  input::placeholder { font-family: system-ui, sans-serif; color: #6b7192; }
-  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,140,255,0.22); }
-  input.bad { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,93,108,0.18); }
+  input::placeholder { font-family: system-ui, sans-serif; color: #7d8b84; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(53,196,141,0.22); }
+  input.bad { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,107,107,0.18); }
 
   .status { font-size: 12.5px; margin-top: 9px; min-height: 17px; line-height: 1.45; }
   .status.err { color: var(--danger); }
@@ -144,15 +151,15 @@
   .footer {
     padding: 16px 38px 22px;
     border-top: 1px solid var(--border);
-    background: rgba(15,18,32,0.72);
+    background: rgba(12,19,16,0.72);
     display: flex; align-items: center; gap: 12px;
   }
   .cta {
     flex: 1;
-    background: linear-gradient(145deg, var(--accent), #4a6bff);
-    color: #fff; border: none; border-radius: 12px;
+    background: linear-gradient(145deg, var(--accent), var(--accent-grad-b));
+    color: var(--on-accent); border: none; border-radius: 12px;
     padding: 13px 20px; font-size: 15.5px; font-weight: 700;
-    box-shadow: 0 8px 22px rgba(76,108,255,0.32);
+    box-shadow: 0 8px 22px rgba(53,196,141,0.32);
     transition: filter 0.15s ease;
   }
   .cta:hover:not(:disabled) { filter: brightness(1.08); }
@@ -167,7 +174,8 @@
 
   .spinner {
     display: inline-block; width: 12px; height: 12px;
-    border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
     border-radius: 50%; animation: spin 0.7s linear infinite;
     vertical-align: -2px; margin-right: 6px;
   }
