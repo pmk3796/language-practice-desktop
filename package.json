@@ -55,6 +55,7 @@
     },
     "directories": {
       "output": "release"
-    }
+    },
+    "afterPack": "build/after-pack.cjs"
   }
 }
