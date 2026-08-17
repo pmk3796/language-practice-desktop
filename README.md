@@ -61,10 +61,24 @@ no shell wrapper.
 
 ### What this build is, and isn't
 
-The app is **ad-hoc signed and not notarized**. It launches on this Mac and on
-other Apple Silicon Macs, but the first launch anywhere else needs a right-click
-→ Open, and macOS will call it unidentified. An ad-hoc signature seals the
-bundle against later tampering; it says nothing about who built it.
+The app is **ad-hoc signed and not notarized**. An ad-hoc signature seals the
+bundle against later tampering; it says nothing about who built it, and Apple
+has not scanned it. So on any Mac that downloaded it, the first launch is
+blocked with "Apple could not verify ... is free of malware", offering only
+*Move to Trash* or *Done*.
+
+The way through is **System Settings → Privacy & Security → Open Anyway**, which
+appears there only after the launch has been attempted and blocked once.
+Right-clicking the app and choosing Open — the old advice — stopped working in
+macOS 15; Apple removed that shortcut. The install steps in `release.sh`'s
+release notes and the site's "First launch" section both describe the current
+flow, and all three need updating together.
+
+Worth knowing which dialog is which, since they look similar and mean opposite
+things. "Could not verify ... free of malware" means unnotarized, and Open
+Anyway will get past it. "...is damaged and can't be opened" means the signature
+itself is broken, there is no way past it, and it is what this build would show
+without the ad-hoc signing step below.
 
 The ad-hoc signature comes from `build/after-pack.cjs`, not from
 electron-builder. With `mac.identity` set to `null`, electron-builder skips
