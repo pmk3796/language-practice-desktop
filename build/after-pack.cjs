@@ -7,22 +7,37 @@ const { promisify } = require('node:util');
 const run = promisify(execFile);
 
 /**
- * Strip extended attributes from the packed app, just before it is signed.
+ * Prepare the packed app for distribution: strip extended attributes, then
+ * ad-hoc sign it.
  *
- * codesign refuses any file carrying a resource fork or Finder info
- * ("...or similar detritus not allowed"). This project lives under ~/Desktop,
- * which iCloud Drive syncs, and iCloud stamps com.apple.fileprovider and
- * com.apple.FinderInfo onto files as they are written — so clearing them before
- * a build does not help: they come back on the copies the build makes.
+ * Extended attributes: codesign refuses any file carrying a resource fork or
+ * Finder info ("...or similar detritus not allowed"). The project sources live
+ * under ~/Desktop, which iCloud Drive syncs and stamps with
+ * com.apple.fileprovider and com.apple.FinderInfo, and the packer copies those
+ * files — attributes and all — into the bundle. Builds write outside the synced
+ * tree (see directories.output) so nothing re-stamps the output mid-signing,
+ * but the copies still arrive dirty, so they are cleared here.
  *
- * afterPack runs after the bundle is assembled and before signing, which is the
- * only point where clearing them sticks.
+ * Ad-hoc signature: with mac.identity set to null, electron-builder skips
+ * signing altogether rather than falling back to an ad-hoc signature. What
+ * survives is the linker-signed stub Electron ships, whose seal no longer
+ * matches a bundle we have renamed and added files to — Apple Silicon refuses
+ * to launch that. Signing with the "-" identity re-seals the bundle as it
+ * actually is. It confers no trust: Gatekeeper still requires the user to
+ * right-click → Open the first time. Replace this with a real Developer ID
+ * signature once the certificate exists.
  *
- * A no-op on machines that do not have the problem.
+ * afterPack is the last hook before the DMG is assembled — and the only one
+ * that runs at all when signing is skipped, since electron-builder fires
+ * afterSign only after a successful sign.
  */
 exports.default = async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
 
   const app = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
+
   await run('xattr', ['-cr', app]);
+  // --deep is deprecated for signing with a real identity, but it remains the
+  // supported way to ad-hoc sign nested code (helpers, frameworks) bottom-up.
+  await run('codesign', ['--force', '--deep', '--sign', '-', app]);
 };

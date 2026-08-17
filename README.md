@@ -46,27 +46,54 @@ you change either repo. `npm run smoke` boots everything headless and exits
 ## Build the app
 
 ```bash
-npm run dist:unsigned   # local testing on this Mac only
-npm run dist            # signed + notarized, for release to other people
+npm run dist
 ```
 
-`dist:unsigned` is the old behaviour: it launches fine on this Mac, but on
-anyone else's it needs a right-click → Open, and the bundle is ad-hoc signed so
-it carries no proof it hasn't been altered. Use it for testing, never to ship.
+The DMG lands in `~/builds/language-practice/`, deliberately outside `~/Desktop`
+— which iCloud Drive syncs. iCloud stamps files it syncs with
+`com.apple.fileprovider.fpfs#P`, and `codesign` refuses any file carrying that
+kind of attribute. Clearing the attributes before signing does not fix it:
+signing walks a couple of hundred files over several minutes, and iCloud
+re-stamps the freshly written output while that is still going. Building outside
+the synced tree removes the race rather than fighting it. The path lives in
+`directories.output`; electron-builder expands `${env.HOME}` itself, so it needs
+no shell wrapper.
 
-### Releasing to other people
+### What this build is, and isn't
 
-`npm run dist` signs with Hardened Runtime and notarizes. It needs two things
-this repo cannot contain:
+The app is **ad-hoc signed and not notarized**. It launches on this Mac and on
+other Apple Silicon Macs, but the first launch anywhere else needs a right-click
+→ Open, and macOS will call it unidentified. An ad-hoc signature seals the
+bundle against later tampering; it says nothing about who built it.
 
-1. **A Developer ID Application certificate.** An "Apple Development"
-   certificate is *not* enough — it only signs for local development and Apple
-   will refuse to notarize it. Developer ID requires Apple Developer Program
-   membership; create the certificate in Xcode (Settings → Accounts → Manage
-   Certificates → + → Developer ID Application) so it lands in your keychain,
-   where electron-builder finds it automatically.
+The ad-hoc signature comes from `build/after-pack.cjs`, not from
+electron-builder. With `mac.identity` set to `null`, electron-builder skips
+signing altogether — it does not fall back to ad-hoc. What is left is the
+linker-signed stub Electron ships upstream, whose seal no longer matches a
+bundle we have renamed and added files to, and Apple Silicon refuses to launch
+that. The same hook clears extended attributes off the packed bundle first,
+since the files copied in still arrive carrying iCloud's stamps from the source
+tree.
 
-2. **Notarization credentials**, as environment variables:
+### Releasing to other people (needs a paid Apple Developer account)
+
+Notarized distribution outside the App Store requires a **Developer ID
+Application** certificate. The `Apple Development` certificate in this keychain
+is *not* enough — it signs for local development only, and Apple will refuse to
+notarize anything signed with it. Developer ID comes with Apple Developer
+Program membership ($99/year); create the certificate in Xcode (Settings →
+Accounts → Manage Certificates → + → Developer ID Application) so it lands in
+the keychain, where electron-builder finds it automatically.
+
+With that in hand, switch the build over:
+
+1. In `package.json`, drop `"identity": null` and set `"hardenedRuntime": true`
+   and `"notarize": true`. The entitlements are already wired up and are only
+   read when signing actually happens.
+2. Drop the `codesign` call from `build/after-pack.cjs` — electron-builder will
+   sign properly at that point. Keep the `xattr` call; it is what makes signing
+   possible at all from a source tree inside iCloud.
+3. Export notarization credentials:
 
    ```bash
    export APPLE_ID="you@example.com"
@@ -78,15 +105,17 @@ this repo cannot contain:
    Use an app-specific password, not your Apple ID password. Notarization
    uploads the build to Apple and typically takes a few minutes.
 
-Verify the result before publishing — both commands should succeed:
+Verify the result before publishing:
 
 ```bash
-spctl -a -vvv -t install "release/mac-arm64/Language Practice.app"
-codesign -dv --verbose=4 "release/mac-arm64/Language Practice.app"
+spctl -a -vvv -t install "$HOME/builds/language-practice/mac-arm64/Language Practice.app"
+codesign -dv --verbose=4 "$HOME/builds/language-practice/mac-arm64/Language Practice.app"
 ```
 
 `spctl` should say *accepted / source=Notarized Developer ID*, and `codesign`
-should show `Authority=Developer ID Application: ...` rather than `Signature=adhoc`.
+should show `Authority=Developer ID Application: ...` rather than
+`Signature=adhoc`. On today's ad-hoc build, `spctl` rejects it and `codesign`
+reports `Signature=adhoc` — that is the expected result, not a regression.
 
 Entitlements live in `build/entitlements.mac.plist`. Hardened Runtime blocks
 things Electron needs, so each entry there is required — including

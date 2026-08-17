@@ -2,7 +2,8 @@ node_modules/
 # Synced build artifacts (copied from the backend/frontend repos by `npm run sync`)
 backend/
 frontend/
-# electron-builder output
+# electron-builder output (builds now write to ~/builds/language-practice,
+# outside the iCloud-synced tree; this catches strays from older configs)
 release/
 .DS_Store
 

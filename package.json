@@ -12,8 +12,7 @@
     "start": "electron .",
     "dev": "npm run sync && electron .",
     "smoke": "LP_SMOKE=1 electron .",
-    "dist": "npm run sync && electron-builder --mac && touch release/.metadata_never_index",
-    "dist:unsigned": "npm run sync && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac -c.mac.identity=null -c.mac.hardenedRuntime=false -c.mac.notarize=false && touch release/.metadata_never_index"
+    "dist": "npm run sync && electron-builder --mac"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -40,11 +39,12 @@
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
-      "hardenedRuntime": true,
+      "identity": null,
+      "hardenedRuntime": false,
+      "notarize": false,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": true,
       "target": [
         "dmg",
         "dir"
@@ -54,7 +54,7 @@
       }
     },
     "directories": {
-      "output": "release"
+      "output": "${env.HOME}/builds/language-practice"
     },
     "afterPack": "build/after-pack.cjs"
   }
