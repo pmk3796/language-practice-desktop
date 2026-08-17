@@ -91,45 +91,149 @@ tree.
 
 ### Releasing to other people (needs a paid Apple Developer account)
 
-Notarized distribution outside the App Store requires a **Developer ID
-Application** certificate. The `Apple Development` certificate in this keychain
-is *not* enough — it signs for local development only, and Apple will refuse to
-notarize anything signed with it. Developer ID comes with Apple Developer
-Program membership ($99/year); create the certificate in Xcode (Settings →
-Accounts → Manage Certificates → + → Developer ID Application) so it lands in
-the keychain, where electron-builder finds it automatically.
+This is the path from today's ad-hoc build to one that opens by double-clicking
+on anyone's Mac. Budget a couple of days: the enrolment is the slow part, and
+everything after it is an afternoon.
 
-With that in hand, switch the build over:
+#### 1. Enrol in the Apple Developer Program ($99/year)
 
-1. In `package.json`, drop `"identity": null` and set `"hardenedRuntime": true`
-   and `"notarize": true`. The entitlements are already wired up and are only
-   read when signing actually happens.
-2. Drop the `codesign` call from `build/after-pack.cjs` — electron-builder will
-   sign properly at that point. Keep the `xattr` call; it is what makes signing
-   possible at all from a source tree inside iCloud.
-3. Export notarization credentials:
+Apple issues **Developer ID Application** certificates only to paid members.
+The `Apple Development` certificate already in this keychain is not a substitute
+— it signs for local development, and Apple refuses to notarize anything signed
+with it.
 
-   ```bash
-   export APPLE_ID="you@example.com"
-   export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"   # appleid.apple.com
-   export APPLE_TEAM_ID="ABCDE12345"                          # Membership details
-   npm run dist
-   ```
+Before starting, the Apple Account being enrolled needs two-factor
+authentication turned on and the **legal** name in its first/last name fields:
+Apple verifies that name against government photo ID, and it becomes the seller
+name attached to anything published. Enrol as an **Individual** unless there is
+a real company to enrol — Organization enrolment additionally requires a D-U-N-S
+number and takes considerably longer.
 
-   Use an app-specific password, not your Apple ID password. Notarization
-   uploads the build to Apple and typically takes a few minutes.
+The quickest route is the **Apple Developer app on an iPhone or iPad**, which
+carries the identity-verification step; the web flow at
+<https://developer.apple.com/programs/enroll/> works too. Expect to supply a
+government photo ID, a phone number, and a physical address — P.O. boxes are
+rejected. Approval usually lands within a day or two.
 
-Verify the result before publishing:
+Once approved, copy the **Team ID** (a ten-character string) from Membership
+details in the developer account. It is needed twice below.
+
+#### 2. Create the Developer ID Application certificate
+
+In Xcode: **Settings → Accounts →** select the Apple ID **→ Manage Certificates
+→ + → Developer ID Application**. It lands in the login keychain, where
+electron-builder finds it with no configuration. Only the Account Holder can
+create one, which for an Individual enrolment is you.
+
+Confirm it arrived:
 
 ```bash
-spctl -a -vvv -t install "$HOME/builds/language-practice/mac-arm64/Language Practice.app"
-codesign -dv --verbose=4 "$HOME/builds/language-practice/mac-arm64/Language Practice.app"
+security find-identity -v -p codesigning     # expect a "Developer ID Application: ..." line
 ```
 
-`spctl` should say *accepted / source=Notarized Developer ID*, and `codesign`
-should show `Authority=Developer ID Application: ...` rather than
-`Signature=adhoc`. On today's ad-hoc build, `spctl` rejects it and `codesign`
-reports `Signature=adhoc` — that is the expected result, not a regression.
+**Back the certificate up before going further.** In Keychain Access, find the
+certificate, expand it to reveal the private key, select both, right-click →
+Export, and save the `.p12` somewhere safe. Apple caps how many Developer ID
+certificates an account may hold, and the private key cannot be recovered — lose
+it and updates get signed with a different identity than the copies already
+installed on people's machines.
+
+#### 3. Store notarization credentials
+
+Notarization uploads each build to Apple for an automated malware scan.
+electron-builder accepts credentials three ways and checks for them in this
+order — Apple ID, then API key, then keychain profile
+(`app-builder-lib/out/mac/MacTargetHelper.js`, `getNotarizeOptions`).
+
+The keychain profile is the one to use: it keeps the secret out of the
+environment and out of shell history, and `notarytool` validates it immediately
+rather than at the end of a ten-minute build.
+
+```bash
+# Create an app-specific password at appleid.apple.com → Sign-In and Security,
+# then hand it to notarytool once. It is stored in the keychain from then on.
+xcrun notarytool store-credentials "language-practice" \
+  --apple-id "you@example.com" \
+  --team-id "ABCDE12345" \
+  --password "xxxx-xxxx-xxxx-xxxx"
+
+export APPLE_KEYCHAIN_PROFILE="language-practice"
+```
+
+The alternative, if you would rather pass credentials per-build, is
+`APPLE_ID` + `APPLE_APP_SPECIFIC_PASSWORD` + `APPLE_TEAM_ID` as environment
+variables. Use an app-specific password either way, never the Apple ID password.
+
+#### 4. Flip the build over
+
+1. In `package.json`, delete `"identity": null` and `"hardenedRuntime": false`
+   from the `mac` block, and set `"notarize": true`. Deleting rather than
+   inverting `hardenedRuntime` is deliberate: for non-MAS builds electron-builder
+   already treats it as on unless explicitly set to `false`. The entitlements are
+   wired up already and are read only when signing actually happens.
+2. Delete the `codesign` call from `build/after-pack.cjs`. electron-builder signs
+   properly from here on, and an ad-hoc signature applied first would just be
+   overwritten. **Keep the `xattr` call** — it is what makes signing possible at
+   all from a source tree inside iCloud.
+3. `npm run dist`.
+
+#### 5. Check that notarization actually happened
+
+Watch the build log for `notarization successful`. This matters more than it
+looks: when electron-builder finds no credentials it logs
+`skipped macOS notarization` as a **warning and carries on**, producing a signed
+but un-notarized DMG that looks like a success. The exit code will not tell you.
+
+Then verify the app itself:
+
+```bash
+APP="$HOME/builds/language-practice/mac-arm64/Language Practice.app"
+spctl -a -vvv -t install "$APP"     # accepted, source=Notarized Developer ID
+codesign -dv --verbose=4 "$APP"     # Authority=Developer ID Application: ...
+xcrun stapler validate "$APP"       # The validate action worked!
+```
+
+`stapler validate` is the one that proves the notarization ticket was attached
+to the bundle rather than merely issued. @electron/notarize staples
+automatically after a successful submission, so this should already pass.
+
+For comparison, today's ad-hoc build gives `rejected` from `spctl` and
+`Signature=adhoc` from `codesign`. That is the expected result for it, not a
+regression.
+
+#### 6. Notarize the disk image too
+
+electron-builder notarizes and staples the `.app`, then wraps the stapled app in
+a DMG — it does not submit the DMG itself. The DMG is the file people actually
+download and quarantine, so submit it as well. It is quick, since Apple has
+already scanned the contents:
+
+```bash
+DMG="$HOME/builds/language-practice/Language Practice-1.0.0-arm64.dmg"
+xcrun notarytool submit "$DMG" --keychain-profile "language-practice" --wait
+xcrun stapler staple "$DMG"
+```
+
+Stapling matters most for the case where someone opens the DMG offline or behind
+a firewall: without a stapled ticket macOS has to reach Apple to check, and if it
+cannot, it blocks.
+
+#### 7. Ship it
+
+```bash
+cd ../language-practice-site && ./release.sh
+```
+
+Then undo the Gatekeeper workarounds, which are no longer true — a notarized app
+opens on a double-click:
+
+- the `### Install` notes in `release.sh` (steps 2 and 3 become unnecessary),
+- the `<section id="first-launch">` block in the site's `index.html`, which is
+  marked with a comment saying to remove it at exactly this point,
+- the "What this build is, and isn't" section above.
+
+Then `./deploy.sh`, and re-run `gh release edit v1.0.0 --notes-file` if the notes
+for an existing release need correcting.
 
 Entitlements live in `build/entitlements.mac.plist`. Hardened Runtime blocks
 things Electron needs, so each entry there is required — including
