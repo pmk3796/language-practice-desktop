@@ -5,3 +5,6 @@ frontend/
 # electron-builder output
 release/
 .DS_Store
+
+# JetBrains IDE state — local to whoever opened the project.
+.idea/
