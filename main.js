@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -8,6 +9,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Fixed local port the embedded backend listens on. The frontend is built with
 // VITE_API_BASE pointing here (see the sync:frontend script).
 const PORT = 47821
+
+// Shared secret for the embedded backend, regenerated every launch and never
+// written to disk. Binding to 127.0.0.1 keeps the port off the network but does
+// nothing about other programs on this machine — in particular, any web page in
+// any browser can POST to a loopback port. Every /api route spends the user's
+// OpenAI credit, so the backend requires this token and only our own renderer
+// is ever given it.
+const AUTH_TOKEN = crypto.randomBytes(32).toString('hex')
 
 // Smoke mode (LP_SMOKE=1): boot everything headless, print a marker, quit.
 const SMOKE = !!process.env.LP_SMOKE
@@ -39,7 +48,12 @@ function writeConfig(patch) {
 // --- Embedded backend -------------------------------------------------------
 async function startBackend(apiKey) {
   process.env.OPENAI_API_KEY = apiKey
-  process.env.FRONTEND_ORIGIN = '*'
+  process.env.LP_AUTH_TOKEN = AUTH_TOKEN
+  // The renderer loads over file://, so its Origin is the opaque value `null`.
+  // Naming it exactly (rather than the old '*', which reflected any caller's
+  // origin back and let any website read our responses) keeps the browser from
+  // handing this server's replies to another page.
+  process.env.FRONTEND_ORIGIN = 'null'
   // Optional model overrides saved in config.json pass straight through.
   const cfg = readConfig()
   if (cfg.chatModel) process.env.CHAT_MODEL = cfg.chatModel
@@ -143,6 +157,13 @@ ipcMain.handle('resize-setup', async (_event, height) => {
   const [w] = setupWindow.getContentSize()
   setupWindow.setContentSize(w, h, true)
   setupWindow.center()
+})
+
+// Synchronous so the preload can publish the token before any app code runs and
+// no request can be made without it. Only our own windows load a preload, so
+// this is not reachable from outside the app.
+ipcMain.on('get-auth-token', (event) => {
+  event.returnValue = AUTH_TOKEN
 })
 
 // Open setup links in the user's real browser, never inside the app.

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Hardened Runtime blocks several things Electron needs by default, so each
+	  exception below is one Electron cannot run without:
+
+	  allow-jit / allow-unsigned-executable-memory
+	      V8 compiles JavaScript to machine code at runtime.
+	  allow-dyld-environment-variables / disable-library-validation
+	      The app loads the Electron Framework and other bundled dylibs that are
+	      signed with our certificate rather than Apple's.
+
+	  device.audio-input is the one that is ours rather than Electron's: without
+	  it getUserMedia fails under Hardened Runtime even though Info.plist already
+	  carries NSMicrophoneUsageDescription. The usage string controls the prompt;
+	  this entitlement controls whether the capability exists at all.
+	-->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>

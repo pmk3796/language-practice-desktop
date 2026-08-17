@@ -1,44 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    Focused palette. One idea only: a speech bubble (conversation) holding a
+    voice wave (spoken). The previous icon carried two bubbles AND a wave, which
+    at 32px — the size the Dock and menu bar actually use — collapsed into an
+    unreadable smudge. Drop shadows were dropped for the same reason.
+  -->
   <defs>
-    <!-- Calm palette: teal brand ground, forest green for the partner bubble. -->
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="#35BFA8"/>
-      <stop offset="52%" stop-color="#15836F"/>
-      <stop offset="100%" stop-color="#0A544A"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#3ED397"/>
+      <stop offset="48%"  stop-color="#12885F"/>
+      <stop offset="100%" stop-color="#06432F"/>
     </linearGradient>
-    <linearGradient id="leaf" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"  stop-color="#86D19B"/>
-      <stop offset="100%" stop-color="#5EAE76"/>
+    <!-- Barely-there top light so the tile is not flat. Too subtle to muddy
+         the small sizes, unlike a blur or a drop shadow. -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="55%"  stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
-    <filter id="soft" x="-25%" y="-25%" width="150%" height="150%">
-      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#06342D" flood-opacity="0.30"/>
-    </filter>
   </defs>
 
-  <!-- app tile (Apple's 824/1024 grid) -->
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- Apple's 824/1024 icon grid -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
 
-  <!-- back bubble: your conversation partner -->
-  <g filter="url(#soft)">
-    <path fill="url(#leaf)" d="
-      M 540 252 H 724 A 66 66 0 0 1 790 318 V 414 A 66 66 0 0 1 724 480 H 540
-      A 66 66 0 0 1 474 414 V 318 A 66 66 0 0 1 540 252 Z"/>
-    <path fill="#5EAE76" d="
-      M 706 446 C 726 478 756 502 794 520 C 744 520 694 500 658 476 Z"/>
-  </g>
+  <!-- Bubble, with the tail on the lower left so the mark sits optically centred. -->
+  <path fill="#FFFFFF" d="M356 292 H668 A116 116 0 0 1 784 408 V562 A116 116 0 0 1 668 678
+     H472 L330 772 L368 678 H356 A116 116 0 0 1 240 562 V408 A116 116 0 0 1 356 292 Z"/>
 
-  <!-- front bubble: you, speaking -->
-  <g filter="url(#soft)">
-    <rect x="244" y="392" width="400" height="300" rx="82" fill="#FFFFFF"/>
-    <path fill="#FFFFFF" d="
-      M 306 636 C 304 692 288 738 254 770 C 324 758 378 722 408 686 Z"/>
-  </g>
-
-  <!-- voice waveform: speaking practice -->
-  <g fill="#0F7A6E">
-    <rect x="329" y="497" width="38" height="90"  rx="19"/>
-    <rect x="393" y="462" width="38" height="160" rx="19"/>
-    <rect x="457" y="477" width="38" height="130" rx="19"/>
-    <rect x="521" y="507" width="38" height="70"  rx="19"/>
+  <!-- Voice wave. Deep enough to hold its shape against white at 16px. -->
+  <g fill="#07503A">
+    <rect x="341" y="448" width="46" height="74"  rx="23"/>
+    <rect x="415" y="409" width="46" height="152" rx="23"/>
+    <rect x="489" y="380" width="46" height="210" rx="23"/>
+    <rect x="563" y="415" width="46" height="140" rx="23"/>
+    <rect x="637" y="443" width="46" height="84"  rx="23"/>
   </g>
 </svg>
