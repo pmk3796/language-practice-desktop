@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, safeStorage, session, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
@@ -26,8 +26,11 @@ let setupWindow = null
 let openaiService = null
 
 // --- Config (API key) -------------------------------------------------------
-// The key lives in ~/Library/Application Support/Language Practice/config.json.
-// It is never bundled into the app.
+// Settings live in config.json under the app's userData directory
+// (~/Library/Application Support/language-practice-desktop), and the key is
+// never bundled into the app. Nor is it written to that file in the clear: it
+// goes through safeStorage, which on macOS wraps it with a secret held in the
+// login Keychain, so the file on its own is not enough to read the key back.
 const configPath = () => path.join(app.getPath('userData'), 'config.json')
 
 function readConfig() {
@@ -38,11 +41,65 @@ function readConfig() {
   }
 }
 
-function writeConfig(patch) {
-  const next = { ...readConfig(), ...patch }
+function saveConfig(next) {
   fs.mkdirSync(app.getPath('userData'), { recursive: true })
-  fs.writeFileSync(configPath(), JSON.stringify(next, null, 2))
+  // 0600 because the fallback in writeApiKey can still put a key in here, and
+  // because none of it is another account's business either way. The mode
+  // option only applies when the file is created, so rewrites are chmod'ed.
+  fs.writeFileSync(configPath(), JSON.stringify(next, null, 2), { mode: 0o600 })
+  fs.chmodSync(configPath(), 0o600)
   return next
+}
+
+/**
+ * The stored key, decrypted, or null if there isn't a usable one.
+ *
+ * Ciphertext that won't decrypt counts as "no key". macOS ties the wrapping
+ * secret to the app's code signature, and an ad-hoc signature changes on every
+ * rebuild, so a reinstall can leave a blob this build can't open. Falling back
+ * to setup costs the user one paste and always works; booting with a key that
+ * cannot be read would fail later and less clearly.
+ */
+function readApiKey() {
+  const cfg = readConfig()
+  if (cfg.apiKeyEnc) {
+    try {
+      return safeStorage.decryptString(Buffer.from(cfg.apiKeyEnc, 'base64')) || null
+    } catch {
+      return null
+    }
+  }
+  // Plaintext: either written before this app encrypted anything, or by the
+  // fallback in writeApiKey.
+  return cfg.apiKey || null
+}
+
+/**
+ * Store the key encrypted, removing any plaintext copy an older version left.
+ * If the OS won't encrypt, keep the old plaintext behaviour rather than locking
+ * someone out of their own app — the file is 0600 in both cases.
+ *
+ * The encrypt call is guarded as well as the availability check: this build is
+ * ad-hoc signed, so macOS asks before letting it read its own Safe Storage
+ * keychain entry, and a user who answers Deny lands here with encryption still
+ * reported as available but the call itself failing. Saving the key must not be
+ * what breaks in that case — otherwise Deny leaves setup with no way forward.
+ *
+ * Must be called after `app.whenReady()`: safeStorage isn't usable before it.
+ */
+function writeApiKey(key) {
+  const next = { ...readConfig() }
+  delete next.apiKey
+  delete next.apiKeyEnc
+
+  try {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('encryption unavailable')
+    next.apiKeyEnc = safeStorage.encryptString(key).toString('base64')
+  } catch {
+    // encryptString throws before assigning, so apiKeyEnc is still absent here.
+    next.apiKey = key
+  }
+  saveConfig(next)
 }
 
 // --- Embedded backend -------------------------------------------------------
@@ -286,7 +343,7 @@ function maskKey(key) {
   return key.length <= 14 ? '••••' : `${key.slice(0, 10)}…${key.slice(-4)}`
 }
 
-ipcMain.handle('get-key-info', async () => ({ masked: maskKey(readConfig().apiKey) }))
+ipcMain.handle('get-key-info', async () => ({ masked: maskKey(readApiKey()) }))
 
 /**
  * Replace the stored key and apply it to the running backend immediately (the
@@ -295,7 +352,7 @@ ipcMain.handle('get-key-info', async () => ({ masked: maskKey(readConfig().apiKe
 ipcMain.handle('update-key', async (_event, key) => {
   const trimmed = String(key || '').trim()
   if (!trimmed) return { ok: false, message: 'Please paste your API key.' }
-  writeConfig({ apiKey: trimmed })
+  writeApiKey(trimmed)
   openaiService?.setApiKey?.(trimmed)
   return { ok: true, masked: maskKey(trimmed) }
 })
@@ -304,7 +361,7 @@ ipcMain.handle('update-key', async (_event, key) => {
 ipcMain.handle('save-key', async (_event, key) => {
   const trimmed = String(key || '').trim()
   if (!trimmed) return { ok: false, message: 'Please paste your API key.' }
-  writeConfig({ apiKey: trimmed })
+  writeApiKey(trimmed)
   setupWindow?.close()
   await boot(trimmed)
   return { ok: true }
@@ -321,7 +378,13 @@ app.whenReady().then(async () => {
     callback(permission === 'media')
   })
 
-  const apiKey = process.env.OPENAI_API_KEY || readConfig().apiKey
+  // Upgrade in place: a key stored in the clear by an earlier version gets
+  // re-written encrypted, and the plaintext copy dropped, on the first launch
+  // after that version.
+  const stored = readConfig()
+  if (stored.apiKey && safeStorage.isEncryptionAvailable()) writeApiKey(stored.apiKey)
+
+  const apiKey = process.env.OPENAI_API_KEY || readApiKey()
   if (!apiKey && !SMOKE) {
     createSetupWindow()
   } else {
