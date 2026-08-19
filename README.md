@@ -26,11 +26,19 @@ fails later with a clear billing message.
 
 The key is stored in
 `~/Library/Application Support/language-practice-desktop/config.json` (never
-inside the app bundle). macOS will also ask for microphone access the first time
-you tap Speak. Optional model overrides (`chatModel`, `transcribeModel`,
-`ttsModel`) can be added to the same config.json.
+inside the app bundle), encrypted with Electron's `safeStorage` — on macOS that
+wraps it with a secret held in your login Keychain, so the file alone doesn't
+give the key up, and a key written in the clear by an older version is re-written
+encrypted on first launch. macOS will also ask for microphone access the first
+time you tap Speak. Optional model overrides (`chatModel`, `transcribeModel`,
+`ttsModel`) can be added to the same config.json, in the clear — they aren't
+secrets.
 
-To see the setup flow again, quit the app and delete that config.json.
+To see the setup flow again, quit the app and delete that config.json. You'll
+also land back there if the stored key ever fails to decrypt: this build is
+ad-hoc signed, and macOS ties the wrapping secret to the signature, so a
+reinstall can leave a blob the new copy can't open. Pasting the key again fixes
+it.
 
 ## Develop
 
@@ -94,6 +102,30 @@ tree.
 This is the path from today's ad-hoc build to one that opens by double-clicking
 on anyone's Mac. Budget a couple of days: the enrolment is the slow part, and
 everything after it is an afternoon.
+
+It fixes a second thing besides the Gatekeeper warning. The stored API key is
+encrypted through `safeStorage`, which keeps its secret in a keychain entry, and
+macOS decides whether to hand that entry over by matching the app against the
+requirement recorded when the entry was created. An ad-hoc signature has no
+identity to record, so the requirement is the literal `cdhash` of the bundle —
+which changes on every single build:
+
+```bash
+codesign -d -r- "$HOME/builds/language-practice/mac-arm64/Language Practice.app"
+# ad-hoc:       designated => cdhash H"00783213..."
+# Developer ID: designated => identifier "com.pranav.languagepractice" and ...
+#                             certificate leaf[subject.OU] = "ABCDE12345"
+```
+
+So every update currently reads as a *different app* to the keychain, and each
+one makes users answer a "Language Practice wants to use your confidential
+information" password prompt once. A Developer ID requirement names the identity
+instead of the contents, so it holds across versions and the prompt stops.
+
+Note that the switch itself changes the app's identity one last time, so the
+first Developer ID build prompts existing users once more. After that it is
+stable for as long as the certificate is — which is the other reason step 2
+insists on backing the private key up.
 
 #### 1. Enrol in the Apple Developer Program ($99/year)
 
@@ -171,10 +203,13 @@ variables. Use an app-specific password either way, never the Apple ID password.
    inverting `hardenedRuntime` is deliberate: for non-MAS builds electron-builder
    already treats it as on unless explicitly set to `false`. The entitlements are
    wired up already and are read only when signing actually happens.
-2. Delete the `codesign` call from `build/after-pack.cjs`. electron-builder signs
-   properly from here on, and an ad-hoc signature applied first would just be
-   overwritten. **Keep the `xattr` call** — it is what makes signing possible at
-   all from a source tree inside iCloud.
+2. Delete **only** the `codesign` call from `build/after-pack.cjs`.
+   electron-builder signs properly from here on, and an ad-hoc signature applied
+   first would just be overwritten. Keep the other two steps: the `xattr` call is
+   what makes signing possible at all from a source tree inside iCloud, and the
+   `plutil` call strips the blanket `NSAllowsArbitraryLoads` that electron-builder
+   writes into every macOS build. Both still need to run before signing, which is
+   where afterPack sits either way.
 3. `npm run dist`.
 
 #### 5. Check that notarization actually happened
