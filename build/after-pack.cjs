@@ -60,7 +60,4 @@ exports.default = async function afterPack(context) {
   }
 
   await run('xattr', ['-cr', app]);
-  // --deep is deprecated for signing with a real identity, but it remains the
-  // supported way to ad-hoc sign nested code (helpers, frameworks) bottom-up.
-  await run('codesign', ['--force', '--deep', '--sign', '-', app]);
 };
