@@ -41,6 +41,16 @@ updates now that builds are signed with a stable Developer ID, but a keychain
 reset or a restore onto a different machine can still orphan the blob. Pasting
 the key again fixes it.
 
+## Reporting a problem
+
+**Help → Report a Problem…** opens a GitHub issue with the app version, macOS
+version and architecture already filled in. Nothing is transmitted by the app —
+the user is composing the report themselves and can edit or delete any of it.
+
+That menu replaces Electron's stock one, whose Help entry points at
+electronjs.org. The other entries are standard `role`s; `editMenu` is not
+optional, since it is what makes ⌘V work in the API-key field.
+
 ## Develop
 
 ```bash

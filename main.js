@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, safeStorage, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, session, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
@@ -367,6 +367,70 @@ ipcMain.handle('save-key', async (_event, key) => {
   return { ok: true }
 })
 
+// --- Menu -------------------------------------------------------------------
+// Where the source and its issue tracker live. Also in build/app-update.yml,
+// which electron-builder writes from the same two values in package.json.
+const GH_REPO = 'pmk3796/language-practice-desktop'
+
+/**
+ * A GitHub issue with the details every bug report needs, already filled in.
+ * People reporting a problem should not have to work out which build they are
+ * on — and a report that omits it usually cannot be acted on.
+ */
+function reportProblemUrl() {
+  const url = new URL(`https://github.com/${GH_REPO}/issues/new`)
+  url.searchParams.set('title', '')
+  url.searchParams.set(
+    'body',
+    [
+      'What happened?',
+      '',
+      '',
+      'What did you expect to happen?',
+      '',
+      '',
+      '---',
+      `App: ${app.getVersion()} (${process.arch})`,
+      `macOS: ${process.getSystemVersion()}`,
+      `Electron: ${process.versions.electron}`,
+      '',
+      "_Nothing above is sent automatically — you're filling this in yourself, and",
+      'you can edit or delete any of it before posting._',
+    ].join('\n'),
+  )
+  return url.toString()
+}
+
+/**
+ * Replaces Electron's stock menu. That one carries a Help entry pointing at
+ * electronjs.org, which is not this app's support channel. The roles below are
+ * the standard macOS menus — editMenu in particular is not optional, since it
+ * is what makes ⌘V work in the API-key field.
+ */
+function buildMenu() {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { role: 'appMenu' },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+      {
+        role: 'help',
+        submenu: [
+          {
+            label: 'Report a Problem\u2026',
+            click: () => shell.openExternal(reportProblemUrl()),
+          },
+          {
+            label: 'View Source on GitHub',
+            click: () => shell.openExternal(`https://github.com/${GH_REPO}`),
+          },
+        ],
+      },
+    ]),
+  )
+}
+
 // --- App lifecycle ----------------------------------------------------------
 // Let the practice audio play without a prior user gesture (replays etc).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -392,6 +456,8 @@ function lockDownNavigation(contents) {
 }
 
 app.whenReady().then(async () => {
+  buildMenu()
+
   app.on('web-contents-created', (_event, contents) => lockDownNavigation(contents))
 
   // Allow the microphone and nothing else. Electron's 'media' permission covers
