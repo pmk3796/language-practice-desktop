@@ -68,7 +68,19 @@ you change either repo. `npm run smoke` boots everything headless and exits
 npm run dist
 ```
 
-The DMG lands in `~/builds/language-practice/`, deliberately outside `~/Desktop`
+The DMG lands in `~/builds/language-practice.noindex/`. Both parts of that path
+are deliberate.
+
+The `.noindex` suffix keeps Spotlight out. Every build writes an unpacked
+`Language Practice.app` next to the DMG, and Spotlight indexes it as an
+application — so searching for the app offers the build output alongside the
+installed copy, and picking the wrong one launches a stale build. Spotlight skips
+any directory whose name ends in `.noindex`, which is the mechanism that works
+here. A `.metadata_never_index` file does not: it is only honoured at a volume
+root, so dropping one in a subdirectory looks like a fix and silently does
+nothing.
+
+The location is outside `~/Desktop`
 — which iCloud Drive syncs. iCloud stamps files it syncs with
 `com.apple.fileprovider.fpfs#P`, and `codesign` refuses any file carrying that
 kind of attribute. Clearing the attributes before signing does not fix it:
@@ -88,7 +100,7 @@ offline or behind a firewall, where macOS cannot reach Apple to ask.
 Verify any build before shipping it:
 
 ```bash
-APP="$HOME/builds/language-practice/mac-universal/Language Practice.app"
+APP="$HOME/builds/language-practice.noindex/mac-universal/Language Practice.app"
 spctl -a -vvv -t exec "$APP"     # accepted, source=Notarized Developer ID
 xcrun stapler validate "$APP"    # The validate action worked!
 ```
@@ -167,7 +179,7 @@ lives in a keychain entry, and macOS decides whether to hand that entry over by
 matching the app against the requirement recorded when the entry was created.
 
 ```bash
-codesign -d -r- "$HOME/builds/language-practice/mac-universal/Language Practice.app"
+codesign -d -r- "$HOME/builds/language-practice.noindex/mac-universal/Language Practice.app"
 # ad-hoc:       designated => cdhash H"00783213..."          <- changes every build
 # Developer ID: designated => identifier "com.pranav.languagepractice" and ...
 #                             certificate leaf[subject.OU] = "P76Y6GBY23"
@@ -274,7 +286,7 @@ but un-notarized DMG that looks like a success. The exit code will not tell you.
 Then verify the app itself:
 
 ```bash
-APP="$HOME/builds/language-practice/mac-universal/Language Practice.app"
+APP="$HOME/builds/language-practice.noindex/mac-universal/Language Practice.app"
 spctl -a -vvv -t install "$APP"     # accepted, source=Notarized Developer ID
 codesign -dv --verbose=4 "$APP"     # Authority=Developer ID Application: ...
 xcrun stapler validate "$APP"       # The validate action worked!
@@ -301,7 +313,7 @@ defaults it to `false`, and an unsigned DMG gives `spctl` nothing to evaluate �
 stapled. Sign, then notarize, then staple, in that order:
 
 ```bash
-DMG="$HOME/builds/language-practice/Language Practice-1.0.0-universal.dmg"
+DMG="$HOME/builds/language-practice.noindex/Language Practice-1.0.0-universal.dmg"
 xcrun notarytool submit "$DMG" --keychain-profile "language-practice" --wait
 xcrun stapler staple "$DMG"
 ```
