@@ -97,6 +97,20 @@ The build is **universal** (arm64 + x86_64), so one DMG serves both Apple
 Silicon and Intel Macs. It is about twice the size of a single-architecture
 build, since Electron's framework is included for each.
 
+App code is packed into `app.asar`. That is electron-builder's default; this
+project had it off from the initial scaffold, with no reason recorded. Turning it
+on takes the bundle from ~2050 files to ~270, and a full signed-and-notarized
+build from over ten minutes to about three — codesign hashes and timestamps every
+file it seals, so the file count is the cost. It also gets Electron to record an
+`ElectronAsarIntegrity` hash in `Info.plist` and check the archive against it at
+load, which loose files have no equivalent of.
+
+The thing to watch if this is ever changed back or extended: `main.js` reaches
+the backend with a dynamic ESM `import()`, and Node's ESM loader has not always
+gone through Electron's asar filesystem shim. It resolves correctly on Electron
+43 — `npm run smoke` covers it, since the backend cannot start unless every
+route module loaded out of the archive.
+
 ### The signing setup (reference)
 
 This is how the Developer ID signing above was set up, kept because the
