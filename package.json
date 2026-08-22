@@ -64,6 +64,9 @@
     "directories": {
       "output": "${env.HOME}/builds/language-practice"
     },
-    "afterPack": "build/after-pack.cjs"
+    "afterPack": "build/after-pack.cjs",
+    "dmg": {
+      "sign": true
+    }
   }
 }

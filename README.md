@@ -235,7 +235,12 @@ falls back.
 electron-builder notarizes and staples the `.app`, then wraps the stapled app in
 a DMG — it does not submit the DMG itself. The DMG is the file people actually
 download and quarantine, so submit it as well. It is quick, since Apple has
-already scanned the contents:
+already scanned the contents.
+
+`build.dmg.sign` is set to `true` so the DMG arrives signed; electron-builder
+defaults it to `false`, and an unsigned DMG gives `spctl` nothing to evaluate —
+`rejected / source=no usable signature` — even when its notarization ticket is
+stapled. Sign, then notarize, then staple, in that order:
 
 ```bash
 DMG="$HOME/builds/language-practice/Language Practice-1.0.0-universal.dmg"
