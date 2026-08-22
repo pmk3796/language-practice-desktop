@@ -80,8 +80,7 @@ here. A `.metadata_never_index` file does not: it is only honoured at a volume
 root, so dropping one in a subdirectory looks like a fix and silently does
 nothing.
 
-The location is outside `~/Desktop`
-— which iCloud Drive syncs. iCloud stamps files it syncs with
+The location is outside `~/Desktop` — which iCloud Drive syncs. iCloud stamps files it syncs with
 `com.apple.fileprovider.fpfs#P`, and `codesign` refuses any file carrying that
 kind of attribute. Clearing the attributes before signing does not fix it:
 signing walks a couple of hundred files over several minutes, and iCloud
