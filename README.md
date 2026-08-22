@@ -35,10 +35,11 @@ time you tap Speak. Optional model overrides (`chatModel`, `transcribeModel`,
 secrets.
 
 To see the setup flow again, quit the app and delete that config.json. You'll
-also land back there if the stored key ever fails to decrypt: this build is
-ad-hoc signed, and macOS ties the wrapping secret to the signature, so a
-reinstall can leave a blob the new copy can't open. Pasting the key again fixes
-it.
+also land back there in the rare case the stored key fails to decrypt — macOS
+ties the wrapping secret to the app's signing identity, so it survives ordinary
+updates now that builds are signed with a stable Developer ID, but a keychain
+reset or a restore onto a different machine can still orphan the blob. Pasting
+the key again fixes it.
 
 ## Develop
 
@@ -67,65 +68,58 @@ the synced tree removes the race rather than fighting it. The path lives in
 `directories.output`; electron-builder expands `${env.HOME}` itself, so it needs
 no shell wrapper.
 
-### What this build is, and isn't
+### How this build is signed
 
-The app is **ad-hoc signed and not notarized**. An ad-hoc signature seals the
-bundle against later tampering; it says nothing about who built it, and Apple
-has not scanned it. So on any Mac that downloaded it, the first launch is
-blocked with "Apple could not verify ... is free of malware", offering only
-*Move to Trash* or *Done*.
+The app is signed with a **Developer ID Application** certificate and notarized
+by Apple, so it opens on a double-click with no security warning. Both the `.app`
+and the DMG carry stapled notarization tickets, which means the check also passes
+offline or behind a firewall, where macOS cannot reach Apple to ask.
 
-The way through is **System Settings → Privacy & Security → Open Anyway**, which
-appears there only after the launch has been attempted and blocked once.
-Right-clicking the app and choosing Open — the old advice — stopped working in
-macOS 15; Apple removed that shortcut. The install steps in `release.sh`'s
-release notes and the site's "First launch" section both describe the current
-flow, and all three need updating together.
-
-Worth knowing which dialog is which, since they look similar and mean opposite
-things. "Could not verify ... free of malware" means unnotarized, and Open
-Anyway will get past it. "...is damaged and can't be opened" means the signature
-itself is broken, there is no way past it, and it is what this build would show
-without the ad-hoc signing step below.
-
-The ad-hoc signature comes from `build/after-pack.cjs`, not from
-electron-builder. With `mac.identity` set to `null`, electron-builder skips
-signing altogether — it does not fall back to ad-hoc. What is left is the
-linker-signed stub Electron ships upstream, whose seal no longer matches a
-bundle we have renamed and added files to, and Apple Silicon refuses to launch
-that. The same hook clears extended attributes off the packed bundle first,
-since the files copied in still arrive carrying iCloud's stamps from the source
-tree.
-
-### Releasing to other people (needs a paid Apple Developer account)
-
-This is the path from today's ad-hoc build to one that opens by double-clicking
-on anyone's Mac. Budget a couple of days: the enrolment is the slow part, and
-everything after it is an afternoon.
-
-It fixes a second thing besides the Gatekeeper warning. The stored API key is
-encrypted through `safeStorage`, which keeps its secret in a keychain entry, and
-macOS decides whether to hand that entry over by matching the app against the
-requirement recorded when the entry was created. An ad-hoc signature has no
-identity to record, so the requirement is the literal `cdhash` of the bundle —
-which changes on every single build:
+Verify any build before shipping it:
 
 ```bash
-codesign -d -r- "$HOME/builds/language-practice/mac-arm64/Language Practice.app"
-# ad-hoc:       designated => cdhash H"00783213..."
-# Developer ID: designated => identifier "com.pranav.languagepractice" and ...
-#                             certificate leaf[subject.OU] = "ABCDE12345"
+APP="$HOME/builds/language-practice/mac-universal/Language Practice.app"
+spctl -a -vvv -t exec "$APP"     # accepted, source=Notarized Developer ID
+xcrun stapler validate "$APP"    # The validate action worked!
 ```
 
-So every update currently reads as a *different app* to the keychain, and each
-one makes users answer a "Language Practice wants to use your confidential
-information" password prompt once. A Developer ID requirement names the identity
-instead of the contents, so it holds across versions and the prompt stops.
+Two things in `build/after-pack.cjs` still run before electron-builder signs.
+It clears extended attributes off the packed bundle, because the sources are
+copied in from an iCloud-synced tree and `codesign` refuses any file carrying
+`com.apple.fileprovider.fpfs#P`. And it deletes
+`NSAppTransportSecurity.NSAllowsArbitraryLoads`, which electron-builder writes
+into every macOS build — it turns ATS off for every host, when the explicit
+127.0.0.1 and localhost exceptions it writes alongside are all this app needs.
+That one cannot be done through `mac.extendInfo`, which is merged before the
+flag is set.
 
-Note that the switch itself changes the app's identity one last time, so the
-first Developer ID build prompts existing users once more. After that it is
-stable for as long as the certificate is — which is the other reason step 2
-insists on backing the private key up.
+The build is **universal** (arm64 + x86_64), so one DMG serves both Apple
+Silicon and Intel Macs. It is about twice the size of a single-architecture
+build, since Electron's framework is included for each.
+
+### The signing setup (reference)
+
+This is how the Developer ID signing above was set up, kept because the
+certificate expires and this is what renewing it looks like. Nothing here needs
+doing again for a routine release — `npm run dist` handles those.
+
+Why a real certificate rather than an ad-hoc signature, beyond the Gatekeeper
+warning: the stored API key is encrypted through `safeStorage`, whose secret
+lives in a keychain entry, and macOS decides whether to hand that entry over by
+matching the app against the requirement recorded when the entry was created.
+
+```bash
+codesign -d -r- "$HOME/builds/language-practice/mac-universal/Language Practice.app"
+# ad-hoc:       designated => cdhash H"00783213..."          <- changes every build
+# Developer ID: designated => identifier "com.pranav.languagepractice" and ...
+#                             certificate leaf[subject.OU] = "P76Y6GBY23"
+```
+
+An ad-hoc signature has no identity to record, so the requirement is the
+bundle's literal `cdhash` — which changes on every build, making each update
+read as a different app and prompting the user for their login password once. A
+Developer ID requirement names the identity instead, so it holds across
+versions.
 
 #### 1. Enrol in the Apple Developer Program ($99/year)
 
@@ -196,21 +190,21 @@ The alternative, if you would rather pass credentials per-build, is
 `APPLE_ID` + `APPLE_APP_SPECIFIC_PASSWORD` + `APPLE_TEAM_ID` as environment
 variables. Use an app-specific password either way, never the Apple ID password.
 
-#### 4. Flip the build over
+#### 4. Point the build at it
 
-1. In `package.json`, delete `"identity": null` and `"hardenedRuntime": false`
-   from the `mac` block, and set `"notarize": true`. Deleting rather than
-   inverting `hardenedRuntime` is deliberate: for non-MAS builds electron-builder
-   already treats it as on unless explicitly set to `false`. The entitlements are
-   wired up already and are read only when signing actually happens.
-2. Delete **only** the `codesign` call from `build/after-pack.cjs`.
-   electron-builder signs properly from here on, and an ad-hoc signature applied
-   first would just be overwritten. Keep the other two steps: the `xattr` call is
-   what makes signing possible at all from a source tree inside iCloud, and the
-   `plutil` call strips the blanket `NSAllowsArbitraryLoads` that electron-builder
-   writes into every macOS build. Both still need to run before signing, which is
-   where afterPack sits either way.
-3. `npm run dist`.
+Already done, and recorded here so a future change is legible. In `package.json`
+the `mac` block carries no `identity` and no `hardenedRuntime` — electron-builder
+discovers the certificate itself, and treats Hardened Runtime as on for non-MAS
+builds unless explicitly disabled — plus `"notarize": true`. `build/after-pack.cjs`
+does *not* ad-hoc sign; it only clears extended attributes and strips the blanket
+ATS flag, both of which must happen before signing.
+
+Then `npm run dist`, with the keychain profile named so notarization can
+authenticate:
+
+```bash
+APPLE_KEYCHAIN_PROFILE="language-practice" npm run dist
+```
 
 #### 5. Check that notarization actually happened
 
@@ -222,7 +216,7 @@ but un-notarized DMG that looks like a success. The exit code will not tell you.
 Then verify the app itself:
 
 ```bash
-APP="$HOME/builds/language-practice/mac-arm64/Language Practice.app"
+APP="$HOME/builds/language-practice/mac-universal/Language Practice.app"
 spctl -a -vvv -t install "$APP"     # accepted, source=Notarized Developer ID
 codesign -dv --verbose=4 "$APP"     # Authority=Developer ID Application: ...
 xcrun stapler validate "$APP"       # The validate action worked!
@@ -232,9 +226,9 @@ xcrun stapler validate "$APP"       # The validate action worked!
 to the bundle rather than merely issued. @electron/notarize staples
 automatically after a successful submission, so this should already pass.
 
-For comparison, today's ad-hoc build gives `rejected` from `spctl` and
-`Signature=adhoc` from `codesign`. That is the expected result for it, not a
-regression.
+An ad-hoc build, by contrast, gives `rejected` from `spctl` and
+`Signature=adhoc` from `codesign` — worth recognising if signing ever silently
+falls back.
 
 #### 6. Notarize the disk image too
 
@@ -244,7 +238,7 @@ download and quarantine, so submit it as well. It is quick, since Apple has
 already scanned the contents:
 
 ```bash
-DMG="$HOME/builds/language-practice/Language Practice-1.0.0-arm64.dmg"
+DMG="$HOME/builds/language-practice/Language Practice-1.0.0-universal.dmg"
 xcrun notarytool submit "$DMG" --keychain-profile "language-practice" --wait
 xcrun stapler staple "$DMG"
 ```
@@ -256,19 +250,18 @@ cannot, it blocks.
 #### 7. Ship it
 
 ```bash
-cd ../language-practice-site && ./release.sh
+cd ../language-practice-site && ./release.sh && ./deploy.sh
 ```
 
-Then undo the Gatekeeper workarounds, which are no longer true — a notarized app
-opens on a double-click:
+`release.sh` uploads the DMG under the fixed name in `site.config.sh`, so the
+site's download button — which points at `/releases/latest/download/<asset>` —
+keeps working without a redeploy. `deploy.sh` is only needed when the page copy
+or the displayed version and size change. If an existing release's notes need
+correcting, `gh release edit v1.0.0 --notes-file`.
 
-- the `### Install` notes in `release.sh` (steps 2 and 3 become unnecessary),
-- the `<section id="first-launch">` block in the site's `index.html`, which is
-  marked with a comment saying to remove it at exactly this point,
-- the "What this build is, and isn't" section above.
-
-Then `./deploy.sh`, and re-run `gh release edit v1.0.0 --notes-file` if the notes
-for an existing release need correcting.
+The Gatekeeper workarounds that used to live in `release.sh`'s install notes and
+in an `id="first-launch"` section of the site have been removed: a notarized app
+opens on a double-click, so the instructions would have been actively wrong.
 
 Entitlements live in `build/entitlements.mac.plist`. Hardened Runtime blocks
 things Electron needs, so each entry there is required — including

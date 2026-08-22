@@ -44,8 +44,18 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
-        "dmg",
-        "dir"
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "dir",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Language Practice uses the microphone so you can speak during practice conversations."
