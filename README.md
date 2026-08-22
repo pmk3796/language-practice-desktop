@@ -111,6 +111,40 @@ gone through Electron's asar filesystem shim. It resolves correctly on Electron
 43 — `npm run smoke` covers it, since the backend cannot start unless every
 route module loaded out of the archive.
 
+### Hardening that is off by default
+
+Electron ships several capabilities enabled that a shipped app has no use for.
+They are switched off through `build.electronFuses`, which rewrites flags in the
+Electron binary at package time:
+
+| Fuse | Why |
+| --- | --- |
+| `runAsNode: false` | Without it, `ELECTRON_RUN_AS_NODE=1 "Language Practice" -e '...'` runs arbitrary JavaScript — under this app's signature, notarization, and TCC grants, microphone included. That makes a notarized app a convenient launcher for anything already on the machine. |
+| `enableNodeOptionsEnvironmentVariable: false` | Same escape via `NODE_OPTIONS=--require ...`. |
+| `enableNodeCliInspectArguments: false` | Stops `--inspect` attaching a debugger to the main process, which can read the API key out of memory. |
+| `enableEmbeddedAsarIntegrityValidation: true` | Makes Electron check `app.asar` against the `ElectronAsarIntegrity` hash in Info.plist rather than merely recording it. |
+| `onlyLoadAppFromAsar: true` | Refuses to fall back to a loose `Resources/app` directory, so the check above cannot be sidestepped by swapping one in. |
+| `enableCookieEncryption: true` | Encrypts the cookie store at rest. |
+
+Order matters, and electron-builder gets it right: fuses are flipped *before*
+signing. They rewrite the binary, and on Apple Silicon a modified binary whose
+signature no longer matches is killed by the kernel at launch — silently, with
+exit 137 and no output. If a build ever dies that way, check `codesign -v`
+before looking anywhere else.
+
+The renderer also carries a Content-Security-Policy, set in the frontend repo's
+`index.html`. `connect-src` is the one that earns its keep: it names the loopback
+API and nothing else, so script that somehow reached the renderer could not send
+anything out. Playback needs `media-src blob:` (TTS audio arrives as a blob URL)
+and Vue's `:style` bindings need `style-src 'unsafe-inline'`. `frame-ancestors`
+is deliberately absent — it is ignored in a `<meta>` tag and only works as a
+header.
+
+Navigation is locked down in `main.js`: every window denies `setWindowOpenHandler`
+(sending `https:` links to the real browser instead), blocks `will-navigate` away
+from the page it loaded, and refuses webview attachment. The renderer holds the
+IPC bridge to the API key, so nothing should be able to point it somewhere else.
+
 ### The signing setup (reference)
 
 This is how the Developer ID signing above was set up, kept because the

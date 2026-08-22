@@ -67,6 +67,14 @@
     "afterPack": "build/after-pack.cjs",
     "dmg": {
       "sign": true
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true
     }
   }
 }

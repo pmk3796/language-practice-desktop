@@ -371,7 +371,29 @@ ipcMain.handle('save-key', async (_event, key) => {
 // Let the practice audio play without a prior user gesture (replays etc).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
+/**
+ * Every window this app opens loads a file:// page we shipped, and the only
+ * outbound links are the setup screen's, which go to the real browser through
+ * the open-external handler. So nothing should ever navigate a window somewhere
+ * else or spawn one — and if a bug or injected content tries, the renderer is
+ * where the API key's IPC bridge lives. Deny both, for every window.
+ */
+function lockDownNavigation(contents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    // A target=_blank to a real site still belongs in the browser, not a
+    // chrome-less Electron window with our preload attached.
+    if (/^https:\/\//i.test(url)) shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  contents.on('will-navigate', (event, url) => {
+    if (url !== contents.getURL()) event.preventDefault()
+  })
+  contents.on('will-attach-webview', (event) => event.preventDefault())
+}
+
 app.whenReady().then(async () => {
+  app.on('web-contents-created', (_event, contents) => lockDownNavigation(contents))
+
   // Allow the mic (getUserMedia) inside the app; macOS still shows its own
   // system microphone prompt the first time.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
