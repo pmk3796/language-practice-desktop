@@ -394,11 +394,33 @@ function lockDownNavigation(contents) {
 app.whenReady().then(async () => {
   app.on('web-contents-created', (_event, contents) => lockDownNavigation(contents))
 
-  // Allow the mic (getUserMedia) inside the app; macOS still shows its own
-  // system microphone prompt the first time.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === 'media')
+  // Allow the microphone and nothing else. Electron's 'media' permission covers
+  // camera as well as microphone, so granting it wholesale would let anything in
+  // the renderer open the camera — checking mediaTypes is what keeps this to the
+  // one device the app actually uses. macOS still shows its own system prompt
+  // the first time.
+  // The two handlers below describe the same request differently: the request
+  // handler passes mediaTypes (an array), the check handler passes mediaType (a
+  // single string). Reading only one of them silently denies the microphone, so
+  // both shapes are handled, and anything that reports neither is refused.
+  const audioOnly = (permission, details) => {
+    if (permission !== 'media') return false
+    if (Array.isArray(details?.mediaTypes)) {
+      return details.mediaTypes.length > 0 && details.mediaTypes.every((type) => type === 'audio')
+    }
+    if (typeof details?.mediaType === 'string') return details.mediaType === 'audio'
+    return false
+  }
+
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    callback(audioOnly(permission, details))
   })
+  // The synchronous counterpart, consulted by navigator.permissions.query and by
+  // some getUserMedia paths. Left at its default it answers independently of the
+  // handler above, so it gets the same rule.
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, _origin, details) =>
+    audioOnly(permission, details),
+  )
 
   // Upgrade in place: a key stored in the clear by an earlier version gets
   // re-written encrypted, and the plaintext copy dropped, on the first launch

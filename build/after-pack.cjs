@@ -59,5 +59,26 @@ exports.default = async function afterPack(context) {
     throw new Error('NSAllowsArbitraryLoads is still set in Info.plist after the removal step.');
   }
 
+  // Electron's upstream Info.plist declares camera, Bluetooth and system-audio
+  // usage strings. This app asks for the microphone and nothing else, and a
+  // declared permission is not inert: it is the string macOS shows if anything
+  // ever does request that device, which makes an unexpected prompt look
+  // legitimate. Removing them means a camera request has no usage string and
+  // fails outright. (mac.extendInfo cannot do this — it deep-merges, so it can
+  // add keys but never delete them.)
+  for (const key of [
+    'NSCameraUsageDescription',
+    'NSBluetoothAlwaysUsageDescription',
+    'NSBluetoothPeripheralUsageDescription',
+    'NSAudioCaptureUsageDescription',
+  ]) {
+    await run('plutil', ['-remove', key, plist]).catch(() => {});
+    const present = await run('plutil', ['-extract', key, 'raw', '-o', '-', plist]).then(
+      () => true,
+      () => false,
+    );
+    if (present) throw new Error(`${key} is still in Info.plist after the removal step.`);
+  }
+
   await run('xattr', ['-cr', app]);
 };
