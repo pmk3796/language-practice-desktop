@@ -1,6 +1,6 @@
 {
   "name": "language-practice-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Language Practice as a macOS desktop app (Electron shell around the existing backend + frontend).",
   "type": "module",
